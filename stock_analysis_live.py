@@ -10,6 +10,7 @@ import numpy as np
 import plotly.graph_objects as go
 import numpy_financial as npf
 import traceback
+import time
 
 st.set_page_config(layout="wide")
 
@@ -54,11 +55,26 @@ st.markdown("""
         background-color: #1E90FF !important;
         color: black !important; /* Change text color for contrast */
     }
+
+    /* Targets the main value in the metric */
+    [data-testid="stMetricValue"] {
+        font-size: 1.5rem; /* Adjust the size as needed, e.g., to 1.5rem or 20px */
+    }
+    
+    /* Targets the label/header in the metric */
+    [data-testid="stMetricLabel"] {
+        font-size: 0.8rem; /* Adjust the size as needed */
+    }
+
+/* Targets the optional delta value */
+[data-testid="stMetricDelta"] {
+    font-size: 0.8rem; /* Adjust the size as needed */
+}
 </style>""", unsafe_allow_html=True)
 
 # --- 1. SQLite Database Setup and Management ---
-DB_NAME = "historical_live_data.db"
-FILE_PATH = "ticker_list.json"
+DB_NAME = "E:/Learnings/StockProfit/stock_data/historical_live_data.db"
+FILE_PATH = "E:/Learnings/StockProfit/stock_data/ticker_list.json"
 
  # Create SQLite DB Connection
 sqlite_conn = sqlite3.connect(DB_NAME)
@@ -229,7 +245,7 @@ def flattenDataframeStack(tickerTradesDF):
     tickerTradesDF = tickerTradesDF.reset_index(level=1) # Reset level 1 index
     tickerTradesDF = tickerTradesDF.rename_axis(columns={"Price": "Index"}) # Rename axis
     tickerTradesDF = tickerTradesDF.reset_index() # Reset level 2 index
-    tickerTradesDF = tickerTradesDF.sort_values(by=['Ticker', 'Date'], ascending=[True, True], inplace=True) # Sort datafarme by Ticker and Date
+    tickerTradesDF = tickerTradesDF.sort_values(by=['Ticker', 'Date'], ascending=[True, True]) # Sort datafarme by Ticker and Date
     resetColumnOrder = ['Ticker', 'Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'] # Reorder column list
     tickerTradesDF = tickerTradesDF[resetColumnOrder] # Reorder columns
     tickerTradesDF.reset_index(inplace=True) # Reset index again to set proper counter
@@ -480,9 +496,9 @@ with investmentPlan:
 
         st.subheader("Stock Information")
         for ticker in availableStocks:
-            tickerDetails = yf.Ticker(ticker)
-            company_long_name = tickerDetails.info.get('longName', 'N/A')
-            company_short_name = tickerDetails.info.get('shortName', 'N/A') 
+            tickerDetails = yf.Ticker(ticker).info
+            company_long_name = tickerDetails.get('longName', 'N/A')
+            company_short_name = tickerDetails.get('shortName', 'N/A') 
 
             if company_long_name != 'N/A':
                 company_name = company_long_name
@@ -491,34 +507,34 @@ with investmentPlan:
             else:
                 company_name = "Company name not available"
 
-            sector = tickerDetails.info.get('sector', 'N/A')
-            marketType = tickerDetails.info.get('market', 'N/A')
-            series = tickerDetails.info.get('quoteType', 'N/A')
-            exchange = tickerDetails.info.get('exchange', 'N/A')
-            fullExchangeName = tickerDetails.info.get('fullExchangeName', 'N/A')
-            quoteSourceName = tickerDetails.info.get('quoteSourceName', 'N/A')
-            industry = tickerDetails.info.get('industry', 'N/A')
-            stockMarketCap = tickerDetails.info.get('marketCap', 0)
-            stockDataValidity = tickerDetails.info.get('maxAge', 0)
-            stockSourceInterval = tickerDetails.info.get('sourceInterval', 0)
-            exchangeDataDelayedBy = tickerDetails.info.get('exchangeDataDelayedBy', 0)
-            country = tickerDetails.info.get('country', 'N/A')
-            exchangeTimezone = tickerDetails.info.get('exchangeTimezoneName', 'N/A')
-            exchangeTimezoneCode = tickerDetails.info.get('exchangeTimezoneShortName', 'N/A')
+            sector = tickerDetails.get('sector', 'N/A')
+            marketType = tickerDetails.get('market', 'N/A')
+            series = tickerDetails.get('quoteType', 'N/A')
+            exchange = tickerDetails.get('exchange', 'N/A')
+            fullExchangeName = tickerDetails.get('fullExchangeName', 'N/A')
+            quoteSourceName = tickerDetails.get('quoteSourceName', 'N/A')
+            industry = tickerDetails.get('industry', 'N/A')
+            stockMarketCap = tickerDetails.get('marketCap', 0)
+            stockDataValidity = tickerDetails.get('maxAge', 0)
+            stockSourceInterval = tickerDetails.get('sourceInterval', 0)
+            exchangeDataDelayedBy = tickerDetails.get('exchangeDataDelayedBy', 0)
+            country = tickerDetails.get('country', 'N/A')
+            exchangeTimezone = tickerDetails.get('exchangeTimezoneName', 'N/A')
+            exchangeTimezoneCode = tickerDetails.get('exchangeTimezoneShortName', 'N/A')
             
             # Recommendations Values
-            recommendationKey = tickerDetails.info.get('recommendationKey', 'N/A')
-            analystRating = tickerDetails.info.get('recommendationMean', 0)
-            totalAnalystsOpinions = tickerDetails.info.get('numberOfAnalystOpinions', 0)
+            recommendationKey = tickerDetails.get('recommendationKey', 'N/A')
+            analystRating = tickerDetails.get('recommendationMean', 0)
+            totalAnalystsOpinions = tickerDetails.get('numberOfAnalystOpinions', 0)
 
             # Currency in which all monetary values for that stock (such as price, market cap, dividends, etc.) are reported.
-            tradeCurrency = tickerDetails.info.get('currency', 'N/A')
+            tradeCurrency = tickerDetails.get('currency', 'N/A')
             
             # Valuation Ratios
-            trailingPERatio = tickerDetails.info.get('trailingPE', 0)
-            forwardPERatio = tickerDetails.info.get('forwardPE', 0)
-            priceToBook = tickerDetails.info.get('priceToBook', 0)
-            peGrowthRatio = tickerDetails.info.get('trailingPegRatio', 0)
+            trailingPERatio = tickerDetails.get('trailingPE', 0)
+            forwardPERatio = tickerDetails.get('forwardPE', 0)
+            priceToBook = tickerDetails.get('priceToBook', 0)
+            peGrowthRatio = tickerDetails.get('trailingPegRatio', 0)
 
             if peGrowthRatio is None:
                 peGrowthRatio = 0
@@ -526,21 +542,21 @@ with investmentPlan:
                 peGrowthRatio = peGrowthRatio
             
             # Profitability Metrics 
-            trailingEPS = tickerDetails.info.get('trailingEps', 0)
-            forwardEPS = tickerDetails.info.get('forwardEps', 0)
-            earningsGrowth = tickerDetails.info.get('earningsGrowth', 0)
-            revenueGrowth = tickerDetails.info.get('revenueGrowth', 0)
-            operatingMargins = tickerDetails.info.get('operatingMargins', 0)
-            netProfitMargins = tickerDetails.info.get('profitMargins', 0)
-            grossMargins = tickerDetails.info.get('grossMargins', 0)
+            trailingEPS = tickerDetails.get('trailingEps', 0)
+            forwardEPS = tickerDetails.get('forwardEps', 0)
+            earningsGrowth = tickerDetails.get('earningsGrowth', 0)
+            revenueGrowth = tickerDetails.get('revenueGrowth', 0)
+            operatingMargins = tickerDetails.get('operatingMargins', 0)
+            netProfitMargins = tickerDetails.get('profitMargins', 0)
+            grossMargins = tickerDetails.get('grossMargins', 0)
             
             # Financial Health and Liquidity
-            debtToEquityRatio = tickerDetails.info.get('debtToEquity', 0)
-            freeCashFlow = tickerDetails.info.get('freeCashflow', 0)
-            currentRatio = tickerDetails.info.get('currentRatio', 0)
+            debtToEquityRatio = tickerDetails.get('debtToEquity', 0)
+            freeCashFlow = tickerDetails.get('freeCashflow', 0)
+            currentRatio = tickerDetails.get('currentRatio', 0)
             
             # Risk and Volatility
-            tickerBeta = tickerDetails.info.get('beta', 0)
+            tickerBeta = tickerDetails.get('beta', 0)
             
             if tickerBeta > 1:
                 stockVolatilityRisk = 'More volatile than the market'
@@ -554,34 +570,34 @@ with investmentPlan:
                 stockVolatilityRisk = 'Price movement negatively uncorrelated to the market'
 
             # Company Values
-            totalMarketValue = tickerDetails.info.get('enterpriseValue', 0)
-            totalCash = tickerDetails.info.get('totalCash', 0)
-            totalDebt = tickerDetails.info.get('totalDebt', 0)
-            totalRevenue = tickerDetails.info.get('totalRevenue', 0)
-            totalEmployees = tickerDetails.info.get('fullTimeEmployees', 0)
+            totalMarketValue = tickerDetails.get('enterpriseValue', 0)
+            totalCash = tickerDetails.get('totalCash', 0)
+            totalDebt = tickerDetails.get('totalDebt', 0)
+            totalRevenue = tickerDetails.get('totalRevenue', 0)
+            totalEmployees = tickerDetails.get('fullTimeEmployees', 0)
 
             # Split Details
-            lastSplitFactor = tickerDetails.info.get('lastSplitFactor', 'N/A')
-            lastSplitDateEpoch = tickerDetails.info.get('lastSplitDate', 'N/A')
+            lastSplitFactor = tickerDetails.get('lastSplitFactor', 'N/A')
+            lastSplitDateEpoch = tickerDetails.get('lastSplitDate', 'N/A')
             
             if lastSplitDateEpoch != 'N/A':
                 lastSplitDate = datetime.fromtimestamp(lastSplitDateEpoch, tz=timezone.utc).date()
 
             # Dividend Details
-            latestDividendValue = tickerDetails.info.get('lastDividendValue', 0)
-            latestDividendDateEpoch = tickerDetails.info.get('lastDividendDate', 'N/A')
+            latestDividendValue = tickerDetails.get('lastDividendValue', 0)
+            latestDividendDateEpoch = tickerDetails.get('lastDividendDate', 'N/A')
             
             if latestDividendDateEpoch != 'N/A':
                 latestDividendDate = datetime.fromtimestamp(latestDividendDateEpoch, tz=timezone.utc).date()
 
-            dividendRate = tickerDetails.info.get('dividendRate', 0)
-            dividendYield = tickerDetails.info.get('dividendYield', 0)
-            exDividendDateEpoch = tickerDetails.info.get('exDividendDate', 'N/A')
+            dividendRate = tickerDetails.get('dividendRate', 0)
+            dividendYield = tickerDetails.get('dividendYield', 0)
+            exDividendDateEpoch = tickerDetails.get('exDividendDate', 'N/A')
             
             if exDividendDateEpoch != 'N/A':
                 exDividendDate = datetime.fromtimestamp(exDividendDateEpoch, tz=timezone.utc).date()    
 
-            payoutRatio = tickerDetails.info.get('payoutRatio', 0)
+            payoutRatio = tickerDetails.get('payoutRatio', 0)
             payoutRatioPercent = payoutRatio * 100
 
             if payoutRatioPercent > 100: 
@@ -590,21 +606,21 @@ with investmentPlan:
                 dividendSustainability = "Sustainable Dividend"
 
             # Shares
-            sharesOutstanding = float(tickerDetails.info.get('sharesOutstanding', 0))
-            impliedSharesOutstanding = float(tickerDetails.info.get('impliedSharesOutstanding', 0))
+            sharesOutstanding = float(tickerDetails.get('sharesOutstanding', 0))
+            impliedSharesOutstanding = float(tickerDetails.get('impliedSharesOutstanding', 0))
             potentialConversionShares = impliedSharesOutstanding - sharesOutstanding
 
             if sharesOutstanding != 0 and impliedSharesOutstanding != 0:
                 sharesRemainingRatio = sharesOutstanding / impliedSharesOutstanding
             
-            floatShares = float(tickerDetails.info.get('floatShares', 0))
+            floatShares = float(tickerDetails.get('floatShares', 0))
             
             if sharesOutstanding != 0 and floatShares != 0:
                 insiderOwnershipGap = sharesOutstanding - floatShares
 
             # Bid and Ask details
-            stockBid =  float(tickerDetails.info.get('bid', 0))
-            stockAsk =  float(tickerDetails.info.get('ask', 0))
+            stockBid =  float(tickerDetails.get('bid', 0))
+            stockAsk =  float(tickerDetails.get('ask', 0))
             
             if stockBid > 0 and stockAsk > 0: 
                 bidAskSpread = stockAsk - stockBid
@@ -616,8 +632,8 @@ with investmentPlan:
             else:
                 tickerLiquidity = 'Low'
 
-            bidSize =  int(tickerDetails.info.get('bidSize', 0))
-            askSize =  int(tickerDetails.info.get('askSize', 0))
+            bidSize =  int(tickerDetails.get('bidSize', 0))
+            askSize =  int(tickerDetails.get('askSize', 0))
             
             if bidSize - askSize > 1000:
                 priceMovement = "Upward"
@@ -629,14 +645,14 @@ with investmentPlan:
             if bidAskSpread != 'N/A' and stockAsk != 0:
                 bidAskPercent = (bidAskSpread / stockAsk) * 100
 
-            regularMarketTimeEpoch = tickerDetails.info.get('regularMarketTime', 'N/A')
+            regularMarketTimeEpoch = tickerDetails.get('regularMarketTime', 'N/A')
             
             if regularMarketTimeEpoch != 'N/A':
                 regularMarketTime = datetime.fromtimestamp(regularMarketTimeEpoch, tz=timezone.utc).date()
 
-            regularMarketPrice = float(tickerDetails.info.get('regularMarketPrice', 0))
-            targetHighPrice = float(tickerDetails.info.get('targetHighPrice', 0))
-            targetLowPrice = float(tickerDetails.info.get('targetLowPrice', 0))
+            regularMarketPrice = float(tickerDetails.get('regularMarketPrice', 0))
+            targetHighPrice = float(tickerDetails.get('targetHighPrice', 0))
+            targetLowPrice = float(tickerDetails.get('targetLowPrice', 0))
 
             if regularMarketPrice != 0 and targetHighPrice != 0:
                 targetGrowth = targetHighPrice - regularMarketPrice
@@ -646,35 +662,37 @@ with investmentPlan:
                 targetFall = regularMarketPrice - targetLowPrice
                 targetFallPercent = (regularMarketPrice - targetLowPrice) / regularMarketPrice * 100
 
-            incomeStatementDF = tickerDetails.income_stmt
+            time.sleep(0.5)
+            tickerISDetails = yf.Ticker(ticker)
+            incomeStatementDF = tickerISDetails.income_stmt
             
             if 'Total Revenue' in incomeStatementDF.index:
-                totalRevenue = tickerDetails.income_stmt.loc['Total Revenue'].iloc[0]
+                totalRevenue = incomeStatementDF.loc['Total Revenue'].iloc[0]
             else:
                 totalRevenue = 0
 
             if 'Net Income' in incomeStatementDF.index:
-                netIncome = tickerDetails.income_stmt.loc['Net Income'].iloc[0]
+                netIncome = incomeStatementDF.loc['Net Income'].iloc[0]
             else:
                 netIncome = 0
             
             if 'Total Expenses' in incomeStatementDF.index:
-                totalExpenses = tickerDetails.income_stmt.loc['Total Expenses'].iloc[0]
+                totalExpenses = incomeStatementDF.loc['Total Expenses'].iloc[0]
             else:
                 totalExpenses = 0
             
             if 'Operating Income' in incomeStatementDF.index:
-                operatingIncome = tickerDetails.income_stmt.loc['Operating Income'].iloc[0]
+                operatingIncome = incomeStatementDF.loc['Operating Income'].iloc[0]
             else:
                 operatingIncome = 0
             
             if 'Operating Expense' in incomeStatementDF.index:
-                operatingExpenses = tickerDetails.income_stmt.loc['Operating Expense'].iloc[0]
+                operatingExpenses = incomeStatementDF.loc['Operating Expense'].iloc[0]
             else:
                 operatingExpenses = 0
 
             if 'Operating Revenue' in incomeStatementDF.index:    
-                operatingRevenue = tickerDetails.income_stmt.loc['Operating Revenue'].iloc[0]
+                operatingRevenue = incomeStatementDF.loc['Operating Revenue'].iloc[0]
             else:
                 operatingRevenue = 0
 
@@ -1112,15 +1130,15 @@ with returnsCal:
                     'Total Returns on Stock': [f"{totalReturns:.2f}"],
                     'Total Units Purchased': [totalUnitsPurchased],
                     'Profit Loss': [f"{totalProfitLoss:.2f}"],
-                    'Rate of Investment': [f"{rateOfInvestments:.4f}"]
+                    'Returns on Investment': [f"{rateOfInvestments:.4f}"]
                 }
 
                 investmentSummaryDF = pd.DataFrame(investmentSummaryKPI)
                 investmentSummaryDF['Profit Loss'] = investmentSummaryDF['Profit Loss'].astype(float)
-                investmentSummaryDF['Rate of Investment'] = investmentSummaryDF['Rate of Investment'].astype(float)
-                investmentSummaryDF = investmentSummaryDF.style.applymap(setProfitLoss, subset=['Profit Loss', 'Rate of Investment'])
+                investmentSummaryDF['Returns on Investment'] = investmentSummaryDF['Returns on Investment'].astype(float)
+                investmentSummaryDF = investmentSummaryDF.style.applymap(setProfitLoss, subset=['Profit Loss', 'Returns on Investment'])
                 investmentSummaryDF = investmentSummaryDF.format(
-                    {"Profit Loss": "{:.2f}", "Rate of Investment": "{:.2%}"}
+                    {"Profit Loss": "{:.2f}", "Returns on Investment": "{:.2%}"}
                 )
                 st.dataframe(investmentSummaryDF, hide_index=True)
             else:
@@ -1145,16 +1163,16 @@ with returnsCal:
                 'Total Returns on Stock': [f"{futureInvestment:.2f}"],
                 'Total Units Purchased': [totalUnitsPurchased],
                 'Profit Loss': [f"{totalProfitLoss:.2f}"],
-                'Rate of Investment': [f"{rateOfInvestments:.4f}"]
+                'Returns on Investment': [f"{rateOfInvestments:.4f}"]
             }
 
             futureInvestmentSummaryDF = pd.DataFrame(futureInvestmentSummaryKPI)
             futureInvestmentSummaryDF['Profit Loss'] = futureInvestmentSummaryDF['Profit Loss'].astype(float)
-            futureInvestmentSummaryDF['Rate of Investment'] = futureInvestmentSummaryDF['Rate of Investment'].astype(float)
-            futureInvestmentSummaryDF = futureInvestmentSummaryDF.style.applymap(setProfitLoss, subset=['Profit Loss', 'Rate of Investment'])
+            futureInvestmentSummaryDF['Returns on Investment'] = futureInvestmentSummaryDF['Returns on Investment'].astype(float)
+            futureInvestmentSummaryDF = futureInvestmentSummaryDF.style.applymap(setProfitLoss, subset=['Profit Loss', 'Returns on Investment'])
             
             futureInvestmentSummaryDF = futureInvestmentSummaryDF.format(
-                {"Profit Loss": "{:.2f}", "Rate of Investment": "{:.2%}"}
+                {"Profit Loss": "{:.2f}", "Returns on Investment": "{:.2%}"}
             )
             st.dataframe(futureInvestmentSummaryDF, hide_index=True)
     except Exception as e: 
@@ -1171,7 +1189,7 @@ with priceTrends:
     selectTickerTrend = st.selectbox("Select Ticker", options=downloadedTickersList, index=0, key='tickerTrend', \
                     help="Select the ticker to display cose price trend.")
     
-    trendStartDate = (date.today() - timedelta(days=365)).strftime("%Y-%m-%d")
+    trendStartDate = (date.today() - timedelta(days=370)).strftime("%Y-%m-%d")
     trendEndDate = date.today().strftime("%Y-%m-%d")
     allTrendParams = (selectTickerTrend, trendStartDate, trendEndDate)
 
@@ -1183,32 +1201,101 @@ with priceTrends:
                 FROM historical_live_trade_data
                 WHERE Ticker = ? AND Trade_Date BETWEEN ? AND ?; 
         """
+        
         tradeDataTrendDF = pd.read_sql_query(selectTickerData, sqlite_trend_conn, params=allTrendParams)
         tradeDataTrendDF['Previous Close'] = tradeDataTrendDF['Close'].shift(1)
         tradeDataTrendDF['Previous Volume'] = tradeDataTrendDF['Volume'].shift(1)
+        tradeDataTrendDF['Previous Week Close'] = tradeDataTrendDF['Close'].shift(periods=5)
+        tradeDataTrendDF['Previous Week Volume'] = tradeDataTrendDF['Volume'].shift(periods=5)
+        tradeDataTrendDF['Previous Month Close'] = tradeDataTrendDF['Close'].shift(periods=22)
+        tradeDataTrendDF['Previous Month Volume'] = tradeDataTrendDF['Volume'].shift(periods=22)
+        tradeDataTrendDF['Previous Quarter Close'] = tradeDataTrendDF['Close'].shift(periods=63)
+        tradeDataTrendDF['Previous Quarter Volume'] = tradeDataTrendDF['Volume'].shift(periods=63)
+        tradeDataTrendDF['Previous Biannual Close'] = tradeDataTrendDF['Close'].shift(periods=126)
+        tradeDataTrendDF['Previous Biannual Volume'] = tradeDataTrendDF['Volume'].shift(periods=126)
+        tradeDataTrendDF['Previous Year Close'] = tradeDataTrendDF['Close'].shift(periods=250)
+        tradeDataTrendDF['Previous Year Volume'] = tradeDataTrendDF['Volume'].shift(periods=250)
         tradeDataTrendDF['Trade Month'] = pd.to_datetime(tradeDataTrendDF['Trade_Date']).dt.strftime('%b-%Y')
-
+        
+        # st.dataframe(tradeDataTrendDF, hide_index=True)
+        # st.write(len(tradeDataTrendDF))
         # Price columns for Metric
         currentPrice = tradeDataTrendDF['Close'].iloc[-1]
+        
+        # Previous Prices
         previousPrice = tradeDataTrendDF['Previous Close'].iloc[-1]
+        previousWeekPrice = tradeDataTrendDF['Previous Week Close'].iloc[-1]
+        previousMonthPrice = tradeDataTrendDF['Previous Month Close'].iloc[-1]
+        previousQuarterPrice = tradeDataTrendDF['Previous Quarter Close'].iloc[-1]
+        previousBiannualPrice = tradeDataTrendDF['Previous Biannual Close'].iloc[-1]
+        previousYearPrice = tradeDataTrendDF['Previous Year Close'].iloc[-1]
+
+        # Price Changes
         priceChange = currentPrice - previousPrice
+        weeklyPriceChange = currentPrice - previousWeekPrice
+        monthlyPriceChange = currentPrice - previousMonthPrice
+        quarterlyPriceChange = currentPrice - previousQuarterPrice
+        biannualPriceChange = currentPrice - previousBiannualPrice
+        yearlyPriceChange = currentPrice - previousYearPrice
+
+        #Price Change Percent
         priceChangePercent = (priceChange / previousPrice) * 100
-        priceSeries = tradeDataTrendDF['Close']
+        weeklyPriceChangePercent = (weeklyPriceChange / previousWeekPrice) * 100
+        monthlyPriceChangePercent = (monthlyPriceChange / previousMonthPrice) * 100
+        quarterlyPriceChangePercent = (quarterlyPriceChange / previousQuarterPrice) * 100
+        biannualPriceChangePercent = (biannualPriceChange / previousBiannualPrice) * 100
+        yearlyPriceChangePercent = (yearlyPriceChange / previousYearPrice) * 100
+        # priceSeries = tradeDataTrendDF['Close']
         
         # Volume columns for Metric
-        currentVolume = tradeDataTrendDF['Volume'].iloc[-1]
-        previousVolume = tradeDataTrendDF['Previous Volume'].iloc[-1]
-        volumeChange = currentVolume - previousVolume
-        volumeChangePercent = (volumeChange / previousVolume) * 100
-        volumeSeries = tradeDataTrendDF['Volume']
-
-        priceCol, volumeCol = st.columns(2)
+        currentVolume = tradeDataTrendDF['Volume'].iloc[-1].astype(int)
         
-        with priceCol:
-            st.metric(label=f'{selectTickerTrend} Close Price', value=f"{currentPrice:.2f}", delta=f"{priceChangePercent:.2f}%", delta_color="normal", border=True)
+        #Previous Volumes
+        previousVolume = tradeDataTrendDF['Previous Volume'].iloc[-1].astype(int)
+        previousWeekVolume = tradeDataTrendDF['Previous Week Volume'].iloc[-1].astype(int)
+        previousMonthVolume = tradeDataTrendDF['Previous Month Volume'].iloc[-1].astype(int)
+        previousQuarterVolume = tradeDataTrendDF['Previous Quarter Volume'].iloc[-1].astype(int)
+        previousBiannualVolume = tradeDataTrendDF['Previous Biannual Volume'].iloc[-1].astype(int)
+        previousYearVolume = tradeDataTrendDF['Previous Year Volume'].iloc[-1].astype(int)
 
-        with volumeCol:
-            st.metric(label=f'{selectTickerTrend} Volume', value=f"{currentVolume}", delta=f"{volumeChangePercent:.2f}%", delta_color="normal", border=True)    
+        volumeChange = currentVolume - previousVolume
+        weeklyVolumeChange = currentVolume - previousWeekVolume
+        monthlyVolumeChange = currentVolume - previousMonthVolume
+        quarterlyVolumeChange = currentVolume - previousQuarterVolume
+        biannualVolumeChange = currentVolume - previousBiannualVolume
+        yearlyVolumeChange = currentVolume - previousYearVolume
+
+        #Price Change Percent
+        volumeChangePercent = (volumeChange / previousVolume) * 100
+        weeklyVolumeChangePercent = (weeklyVolumeChange / previousWeekVolume) * 100
+        monthlyVolumeChangePercent = (monthlyVolumeChange / previousMonthVolume) * 100
+        quarterlyVolumeChangePercent = (quarterlyVolumeChange / previousQuarterVolume) * 100
+        biannualVolumeChangePercent = (biannualVolumeChange / previousBiannualVolume) * 100
+        yearlyVolumeChangePercent = (yearlyVolumeChange / previousYearVolume) * 100
+        # volumeSeries = tradeDataTrendDF['Volume']
+
+        # priceCol, volumeCol = st.columns(2), with priceCol:
+        dailyWeeklyRow = st.container(horizontal=True)
+        monthlyQuarterlyRow = st.container(horizontal=True)
+        biannualYearlyRow = st.container(horizontal=True)
+
+        with dailyWeeklyRow:      
+            st.metric(label='Price vs Previous Day Price', value=f"{currentPrice:.2f} ({previousPrice:.2f})", delta=f"{priceChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+            st.metric(label='Volume vs Previous Day Volume', value=f"{currentVolume} ({previousVolume})", delta=f"{volumeChangePercent:.2f}%", delta_color="normal", border=True, width=325)      
+            st.metric(label='Price vs Previous Week Price', value=f"{currentPrice:.2f} ({previousWeekPrice:.2f})", delta=f"{weeklyPriceChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+            st.metric(label='Volume vs Previous Week Volume', value=f"{currentVolume} ({previousWeekVolume})", delta=f"{weeklyVolumeChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+
+        with monthlyQuarterlyRow:      
+            st.metric(label='Price vs Previous Month Price', value=f"{currentPrice:.2f} ({previousMonthPrice:.2f})", delta=f"{monthlyPriceChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+            st.metric(label='Volume vs Previous Month Volume', value=f"{currentVolume} ({previousMonthVolume})", delta=f"{monthlyVolumeChangePercent:.2f}%", delta_color="normal", border=True, width=325)      
+            st.metric(label='Price vs Previous Quarter Price', value=f"{currentPrice:.2f} ({previousQuarterPrice:.2f})", delta=f"{quarterlyPriceChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+            st.metric(label='Volume vs Previous Quarter Volume', value=f"{currentVolume} ({previousQuarterVolume})", delta=f"{quarterlyVolumeChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+
+        with biannualYearlyRow:      
+            st.metric(label='Price vs Previous Biannual Price', value=f"{currentPrice:.2f} ({previousBiannualPrice:.2f})", delta=f"{biannualPriceChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+            st.metric(label='Volume vs Previous Biannual Volume', value=f"{currentVolume} ({previousBiannualVolume})", delta=f"{biannualVolumeChangePercent:.2f}%", delta_color="normal", border=True, width=325)      
+            st.metric(label='Price vs Previous Year Price', value=f"{currentPrice:.2f} ({previousYearPrice:.2f})", delta=f"{yearlyPriceChangePercent:.2f}%", delta_color="normal", border=True, width=325)
+            st.metric(label='Volume vs Previous Year Volume', value=f"{currentVolume} ({previousYearVolume})", delta=f"{yearlyVolumeChangePercent:.2f}%", delta_color="normal", border=True, width=325)    
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=tradeDataTrendDF['Trade_Date'], y=tradeDataTrendDF['Close'], mode='lines', name='Close Price'))
