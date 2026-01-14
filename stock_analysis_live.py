@@ -73,8 +73,8 @@ st.markdown("""
 </style>""", unsafe_allow_html=True)
 
 # --- 1. SQLite Database Setup and Management ---
-DB_NAME = "E:/Learnings/StockProfit/stock_data/historical_live_data.db"
-FILE_PATH = "E:/Learnings/StockProfit/stock_data/ticker_list.json"
+DB_NAME = "historical_live_data.db"
+FILE_PATH = "ticker_list.json"
 
  # Create SQLite DB Connection
 sqlite_conn = sqlite3.connect(DB_NAME)
