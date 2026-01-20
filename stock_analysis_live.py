@@ -11,21 +11,24 @@ import plotly.graph_objects as go
 import numpy_financial as npf
 import traceback
 import time
+from decimal import Decimal
 
+# Step 1: Set page layout
 st.set_page_config(layout="wide")
 
+# Step 2: Add css to markdown for customizing the widgets
 # Blue: 0000FF, Red: FF0000
 
 st.markdown("""
 <style>
     .stTabs [data-baseweb="tab-highlight"] {
         background-color:#1E90FF;
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
     }
             
 	.stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-		font-size: 16px;
+		font-size: 14px;
         font-weight: bold;
     }
 
@@ -38,7 +41,7 @@ st.markdown("""
 		border-radius: 4px 4px 0px 0px;
 		padding-top: 5px;
 		padding-bottom: 5px;
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
         border-bottom: #1E90FF;
     }
@@ -47,7 +50,7 @@ st.markdown("""
   		background-color: #1E90FF;
         color: #FFFFFF;
         border-bottom: 2px solid #s;
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
 	}
             
@@ -66,23 +69,27 @@ st.markdown("""
         font-size: 0.8rem; /* Adjust the size as needed */
     }
 
-/* Targets the optional delta value */
-[data-testid="stMetricDelta"] {
-    font-size: 0.8rem; /* Adjust the size as needed */
-}
+    /* Targets the optional delta value */
+    [data-testid="stMetricDelta"] {
+        font-size: 0.8rem; /* Adjust the size as needed */
+    }
 </style>""", unsafe_allow_html=True)
 
-# --- 1. SQLite Database Setup and Management ---
+# Step 3: SQLite Database Setup and Management
 DB_NAME = "historical_live_data.db"
-FILE_PATH = "ticker_list.json"
 
- # Create SQLite DB Connection
+# Create SQLite DB Connection
 sqlite_conn = sqlite3.connect(DB_NAME)
 sqlite_cursor = sqlite_conn.cursor()
 
+# Step 4: Set path of JSON file where existing ticker list and new ticker will be added  
+FILE_PATH = "ticker_list.json"
+
+# Step 5: Variable declarations (empty lists and column lists for datatframes)
 # Empty lists to store data
 tickerDataList = []
 stockInfoList = []
+stockHistoryList = []
 pivotPointList = []
 valuationRatiosList = []
 profitabilityMetricsList = []
@@ -96,7 +103,8 @@ targetPricePredictionList = []
 incomeStatementList = []
 
 # Columns for dataframes
-stockInfoColumns = ['Ticker', 'Company Name', 'Sector', 'Industry', 'Market Type', 'Series', 'Exchange', 'Full Exchange Name', 'Quote Source', 'Market Capitalization', 'Analyst Recommendations', 'Analyst Rating', 'Total Opinions', 'Stock Currency', 'Data Valid For', 'Data Refreshed Frequency', 'Price Information Delay', 'Country', "Exchange Timezone", "Exchange Timezone Code"]
+stockInfoColumns = ['Ticker', 'Company Name', 'Sector', 'Industry', 'Market Type', 'Series', 'Exchange', 'Full Exchange Name', 'Quote Source', 'Market Capitalization', 'Analyst Recommendations', 'Analyst Rating', 'Total Opinions', 'Stock Currency', 'Data Valid For (secs)', 'Data Refreshed Frequency (secs)', 'Price Information Delay (mins)', 'Country', "Exchange Timezone", "Exchange Timezone Code"]
+stockHistoryColumns = ['Ticker', 'IPO Date', 'All Time High Price', 'All Time High Price Date', 'All Time Low Price', 'All Time Low Price Date']
 valuationRatiosColumns =['Ticker','Trailing PE Ratio', 'Forward PE Ratio', 'Price To Book', 'PE Growth Ratio']
 profitabilityMetricsColumns = ['Ticker', 'Trailing EPS', 'Forward EPS', 'Earnings Growth', 'Revenue Growth', 'Operating Margins', 'Net Profit Margins', 'Gross Margins']
 financialHealthLiquidityColumns = ['Ticker', 'Debt To Equity Ratio', 'Free Cash Flow', 'Current Ratio']
@@ -108,16 +116,10 @@ bidAskDetailsColumns = ['Ticker', 'Bid', 'Ask', 'Bid Ask Spread', 'Ticker Liquid
 targetPricePredictionColumns = ['Ticker', 'Regular Market Time', 'Regular Market Price', 'Target High Price', 'Target Low Price', 'Target Growth', 'Target Growth Percent', 'Target Fall', 'Target Fall Percent']
 incomeStatementColumns = ['Ticker', 'Total Revenue', 'Net Income', 'Total Expenses', 'Operating Income', 'Operating Expense', 'Operating Revenue']
 
-# Define the end date for downloading historical trade data
+# Step 6: Define end date to for downloading historical trade data
 end_date = date.today().strftime("%Y-%m-%d") # Use today's date as the end date
 
-# "MAR",  "CSCO", "SPY", "AMD", "CMCSA", "WBD", "PFE", "MSTR", "NKE", "PYPL", "LYG", "PEP", "BCS", "JPM", "ABNB", "VZ", "DIS", "KO", "TRV", "CAT", "GS", "AMGN", "MCD", "AXP", "HON", "PLTR", "BA", "BAC", "DELL", "DE", "EBAY", "GIS", "GLW", "KMB", "KHC", "MRK", "LLY", "VRTX", "MNST", "CTAS", "ADBE", "QCOM", "SBUX", "ACN", "MSI", "BIDU", "MU", "IRWD", "BRK-A", "BRK-B", "DPZ", "PG", "MS", "WFC", "AZN", "HSBC", "NVS", "PM", "CRM", "TMO", "SHOP", "SHEL", "ABT", "HDB", "TXN", "NOW", "SONY", "IBN", "BN", "SNOW", "EQIX", "INFY", "FDX", "TRI", "EA", "CTSH", "MT", "HPE", "VOD", "WIT", "FOX", "RDY", "JNJ", "UL", "UBER", "IMO", "SU", "SLF", "NWG", "CL", "WHR", "FTS", "LEVI", "HOG", "ZM", "LOGI", "CRWD", "REYN", "TRMB", "VRSN", "MMYT", "HWKN", "UPWK", "COUR", "BB", "FVRR", "DOMO"
-
-# Required functions
-# Save the list stored in session into json file for subsequent sessions
-def saveTickerListToFile(tickerList):
-    with open(FILE_PATH, 'w') as f:
-        json.dump(tickerList, f)
+# "MAR", "CSCO", "SPY", "AMD", "CMCSA", "WBD", "PFE", "MSTR", "NKE", "PYPL", "LYG", "PEP", "BCS", "JPM", "ABNB", "VZ", "DIS", "KO", "TRV", "CAT", "GS", "AMGN", "MCD", "AXP", "HON", "PLTR", "BA", "BAC", "DELL", "DE", "EBAY", "GIS", "GLW", "KMB", "KHC", "MRK", "LLY", "VRTX", "MNST", "CTAS", "ADBE", "QCOM", "SBUX", "ACN", "MSI", "BIDU", "MU", "IRWD", "BRK-A", "BRK-B", "DPZ", "PG", "MS", "WFC", "AZN", "HSBC", "NVS", "PM", "CRM", "TMO", "SHOP", "SHEL", "ABT", "HDB", "TXN", "NOW", "SONY", "IBN", "BN", "SNOW", "EQIX", "INFY", "FDX", "TRI", "EA", "CTSH", "MT", "HPE", "VOD", "WIT", "FOX", "RDY", "JNJ", "UL", "UBER", "IMO", "SU", "SLF", "NWG", "CL", "WHR", "FTS", "LEVI", "HOG", "ZM", "LOGI", "CRWD", "REYN", "TRMB", "VRSN", "MMYT", "HWKN", "UPWK", "COUR", "BB", "FVRR", "DOMO"
 
 # Load list from the saved json file for use in current session
 def loadTickerListFromFile():
@@ -128,8 +130,15 @@ def loadTickerListFromFile():
         tickerList = []
     return tickerList
 
+# Step 7: Add ticker list to streamlit session state
 if 'ticker_list' not in st.session_state:
     st.session_state.ticker_list = loadTickerListFromFile()
+
+# Step 8: Define Rreusable functions
+# Save the list stored in session into json file for subsequent sessions
+def saveTickerListToFile(tickerList):
+    with open(FILE_PATH, 'w') as f:
+        json.dump(tickerList, f)
 
 def add_ticker_to_list():
     print("inside call back function")
@@ -149,9 +158,6 @@ def recordsForTickerExists(ticker, conn):
         WHERE Ticker = ?;
     """
     dbStockDataDF = pd.read_sql_query(query, conn, params=(ticker,))
-    # print()
-    # print(dbStockDataDF)
-    # print()
     totalRecords = len(dbStockDataDF)
     # print(f"Total Records for {ticker}: {totalRecords}")
 
@@ -292,18 +298,155 @@ def onToggleChange():
     else:
         st.session_state.toggleLabel = "Industries"
 
+def getAllTimeHighDate(ticker, allTimeHigh):
+    sqlite_conn = None
+
+    try: 
+        allTimeHighDecimals = abs(Decimal(allTimeHigh).as_tuple().exponent)
+        sqlite_conn = sqlite3.connect(DB_NAME)
+        cursor = sqlite_conn.cursor()
+
+        if allTimeHighDecimals > 2:
+            allTimeHigh = round(allTimeHigh, 2)
+            query = """
+                SELECT Trade_Date
+                FROM historical_live_trade_data
+                WHERE Ticker = ? AND ROUND(High, 2) = ?;
+            """
+        elif allTimeHighDecimals == 2:
+            query = """
+                SELECT Trade_Date
+                FROM historical_live_trade_data
+                WHERE Ticker = ? AND ROUND(High, 2) = ?;
+            """
+        else:
+            query = """
+                SELECT Trade_Date
+                FROM historical_live_trade_data
+                WHERE Ticker = ? AND ROUND(High, 1) = ?;
+            """
+
+        # pd.read_sql_query(query, conn, params=(ticker, allTimeHigh))
+        params=(ticker, allTimeHigh, )
+        allTimeHighDate = cursor.execute(query, params)
+        allTimeHighDateRow = allTimeHighDate.fetchone()
+
+        if allTimeHighDateRow:
+            allTimeHighPriceDate = str(allTimeHighDateRow[0])
+            # print(allTimeHighPriceDate)
+            
+            return allTimeHighPriceDate
+        else:
+            return None
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return None
+    finally:
+        # Close the connection
+        if sqlite_conn:
+            sqlite_conn.close()
+
+def getAllTimeLowDate(ticker, allTimeLow):
+    sqlite_conn = None
+    
+    try:
+        sqlite_conn = sqlite3.connect(DB_NAME)
+        cursor = sqlite_conn.cursor()
+
+        allTimeLowPrice = str(allTimeLow)
+        allTimeLowDecimals = abs(Decimal(allTimeLowPrice).as_tuple().exponent)
+
+        query = """
+            SELECT Trade_Date
+            FROM historical_live_trade_data
+            WHERE Ticker = ? AND ROUND(Low, ?) = ROUND(?, ?);
+        """
+    
+        params=(ticker, allTimeLowDecimals, allTimeLowPrice, allTimeLowDecimals,)
+        
+        allTimeLowDate = cursor.execute(query, params)
+        allTimLowDateRow = allTimeLowDate.fetchone()
+
+        if allTimLowDateRow:
+            allTimeLowPriceDate = str(allTimLowDateRow[0])
+            #print(allTimeLowPriceDate)
+            
+            return allTimeLowPriceDate
+        else:
+            return None
+        # print(allTimeLowDF)
+        return allTimeLowDF
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return None
+    finally:
+        # Close the connection
+        if sqlite_conn:
+            sqlite_conn.close()
+
+def getDistributionSplitType(investmentMode, distributionSplit):
+    if investmentMode == 'Per Stock':
+        finalDistributionSplit = 'No Split'
+    else: 
+        finalDistributionSplit = distributionSplit
+
+    return finalDistributionSplit
+
+def getDistributionSplitPercentage(investmentMode, distributionSplit, splitPercentages, investmentAmount, numberOfStocks):
+    finalSplitPercentages = ''    
+    # print(investmentMode, distributionSplit, splitPercentages, investmentAmount, numberOfStocks)
+
+    if investmentMode == 'Overall':
+        if distributionSplit == 'Custom Split':
+            finalSplitPercentages = splitPercentages
+        else:
+            investmentPerStock = investmentAmount / numberOfStocks
+            investmentPercentagePerStock = (investmentPerStock / investmentAmount) * 100
+            individualSplitPercentages = str(int(investmentPercentagePerStock))
+
+            for i in range (int(numberOfStocks)):
+                finalSplitPercentages += f"{individualSplitPercentages} "
+    else:
+        for i in range (int(numberOfStocks)):
+            finalSplitPercentages += f"100 "
+
+    return finalSplitPercentages
+
+def getDictFromString(finalString):
+    # (finalString)
+    startKey = 1
+    finalStringDict = {index + startKey: word for index, word in enumerate(finalString.split())}
+    return finalStringDict
+
+def setPortfolioProfitLoss(profitLossAmount):
+    if profitLossAmount > 0:
+        color = "#4CBB17"
+    elif profitLossAmount < 0:
+        color = "#FF0000"
+    else:
+        color = "#FFBF00"
+    return f"color: {color};"
+
+def calculateSMA(group, window, price_col='Close'):
+    """Calculates SMA for a given stock group."""
+    sma_col_name = f'SMA_{window}'
+    group[sma_col_name] = group[price_col].rolling(window=window).mean()
+    return group
+
+# Step 9: Main code 
 st.title("Live Stock Data Analysis")
 
-tradeData, investmentPlan, returnsCal, priceTrends, keyIndicators, companyMetrics, sectorIndustry = st.tabs(["Trade Data", "Investment Planner", "Returns on Investment", "Analyze Price Trends", "Key Technical Indicators", "Company Metrics", "Sector & Industry"])
+tradeData, investmentPlan, currentPortfolioValue, returnsCal, priceTrends, keyIndicators, companyMetrics, sectorIndustry = st.tabs(["Trade Data", "Investment Planner", "Current Portfolio Value", "Returns on Investment", "Analyze Price Trends", "Key Technical Indicators", "Company Metrics", "Sector & Industry"])
 
 with tradeData:
     st.header("Trade Data Download")
-    # --- 2. Option to download stock data for new tickers ---
+    # Step 9.1:Download stock data for new tickers
     # st.title("Add New Ticker Symbols to download historical & live trade data and include it in existing ticker list.")
     with st.container(horizontal=True):
         addNewTicker = st.button("Add Ticker")
         downloadTickerData = st.button("Download Ticker Data")
 
+    # Get new ticker input from investor and the data to json and session state
     if addNewTicker:
         try:
             newTickers = st.text_input("Enter Ticker Symbol", key='newTickers', on_change=add_ticker_to_list, placeholder="e.g., AAPL")
@@ -314,12 +457,12 @@ with tradeData:
         except Exception as e:
             st.error(f"Error downloading data: {e}")
 
-    # --- 4. Download Ticker Data ---
+    # Download Ticker Data
     if downloadTickerData:
         try: 
             # drop_cursor = sqlite_conn.cursor()
             # drop_cursor.execute('''
-            #    DROP TABLE IF EXISTS historical_live_stock_data
+            #    DROP TABLE IF EXISTS historical_live_trade_data
             # ''')
                 
             # Create table to store live transactions for each ticker
@@ -352,14 +495,14 @@ with tradeData:
                         daysToDownload = int(dayDifference) - 1
                         start_date = (date.today() - timedelta(days=daysToDownload)).strftime("%Y-%m-%d")
                     else:
-                        start_date = "1995-01-01" # 1995-01-01
+                        start_date = "1962-01-01"
 
-                    print(f"Downloading data for {ticker} from {start_date} to {end_date}")
-                    print()
+                    # print(f"Downloading data for {ticker} from {start_date} to {end_date}")
+                    # print()
 
                     tickerDataDF = yf.download(ticker, start=start_date, end=end_date, auto_adjust=False, multi_level_index=False)
                     tickerName = str(ticker)
-
+                    
                     if "." in tickerName:
                         tickerExchangeList = tickerName.split('.')
                         tickerDataDF['Ticker'] = tickerExchangeList[0]
@@ -395,7 +538,7 @@ with tradeData:
             # st.write(tickerHistoricalLiveDataDF.dtypes)
             # st.write()# Insert the live trading records to the table
             
-            if tickerHistoricalLiveDataDF is not None and not tickerHistoricalLiveDataDF.empty():
+            if tickerHistoricalLiveDataDF is not None and not tickerHistoricalLiveDataDF.empty:
                 insert_stock_transactions = "INSERT INTO historical_live_trade_data(Trade_Date, Adjusted_Close, Close, High, Low, Open, Volume, Ticker) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                         
                 # Creating tuples for executemany
@@ -420,18 +563,22 @@ with tradeData:
             st.error("Error in downloading or loading data into SQLite")
             traceback.print_exc()
             st.exception(e)
+        finally:
+            # Close the connection
+            if sqlite_conn:
+                sqlite_conn.close()
     
     try:          
         st.header("Historical Stock Data")
-        
+        sqlite_conn = sqlite3.connect(DB_NAME)
         # tickerLists = st.selectbox("Select Tickers for Investment Plan", options=st.session_state['ticker_list'], \
         # help="Select the ticker symbols for which you want to create an investment plan.")
-        st.write('Note: 30 years of trade data for multiple stocks is loaded into SQLite database. Filter using Tickers and Year.')
+        st.write('Note: 60 years of trade data for multiple stocks is loaded into SQLite database. Filter using Tickers and Year.')
         with st.container(horizontal=False):
             tickerLists = st.multiselect("Select tickers", options=st.session_state['ticker_list'], default=st.session_state['ticker_list'], help="Select the ticker symbols for which you want to create an investment plan.")
 
             startDateCol, endDateCol = st.columns(2)
-            fromDate = "1995-01-01"
+            fromDate = "1962-01-01"
             toDate =  date.today().strftime("%Y-%m-%d")
             maxFromDate = (date.today() - timedelta(days=365)).strftime("%Y-%m-%d")
             
@@ -472,7 +619,6 @@ with tradeData:
             st.session_state.selectedTickerLists = tickerLists
                 
         st.space("small") # "small", "medium", "large", or "stretch"
-        st.divider()
     except sqlite3.Error as e:
         st.error("Error in fetching data from SQLite3 database")
         traceback.print_exc()
@@ -498,7 +644,7 @@ with investmentPlan:
         for ticker in availableStocks:
             tickerDetails = yf.Ticker(ticker).info
             company_long_name = tickerDetails.get('longName', 'N/A')
-            company_short_name = tickerDetails.get('shortName', 'N/A') 
+            company_short_name = tickerDetails.get('shortName', 'N/A')
 
             if company_long_name != 'N/A':
                 company_name = company_long_name
@@ -519,9 +665,47 @@ with investmentPlan:
             stockSourceInterval = tickerDetails.get('sourceInterval', 0)
             exchangeDataDelayedBy = tickerDetails.get('exchangeDataDelayedBy', 0)
             country = tickerDetails.get('country', 'N/A')
+            region = tickerDetails.get('region', 'N/A')
             exchangeTimezone = tickerDetails.get('exchangeTimezoneName', 'N/A')
             exchangeTimezoneCode = tickerDetails.get('exchangeTimezoneShortName', 'N/A')
+
+            # Stock inception date available as milliseconds in following attributes: foundingDate, ipoDate, firstTradeDate, dateFirstTrade, listingDate, firstTradeDateMilliseconds
+            firstTradeDateMilliseconds = tickerDetails.get('firstTradeDateMilliseconds', 0)
             
+            if firstTradeDateMilliseconds > 0: 
+                ipoDate = datetime.fromtimestamp(firstTradeDateMilliseconds / 1000.0, tz=timezone.utc).date()
+            elif firstTradeDateMilliseconds < 0:
+                epochStart = datetime(1970, 1, 1, tzinfo=None)
+                delta = timedelta(milliseconds=firstTradeDateMilliseconds)
+                ipoDate = (epochStart + delta).strftime('%Y-%m-%d')
+            else:
+                ipoDate = "1970-01-01"
+            
+            # st.write(ticker, firstTradeDateMilliseconds, ipoDate)
+
+            # All time high and low price, for respective dates need to query the database
+            allTimeHighPrice = tickerDetails.get('allTimeHigh', 0.0)
+            allTimeLowPrice = tickerDetails.get('allTimeLow', 0.0)
+        
+            allTimeHighPriceDateTime = getAllTimeHighDate(ticker, allTimeHighPrice)
+            allTimeLowPriceDateTime = getAllTimeLowDate(ticker, allTimeLowPrice)
+            dateTimeFormatString = "%Y-%m-%d %H:%M:%S"
+
+            if allTimeHighPriceDateTime is not None:
+                allTimeHighPriceDateTimeObj = datetime.strptime(allTimeHighPriceDateTime, dateTimeFormatString)
+                allTimeHighPriceDate = allTimeHighPriceDateTimeObj.date()
+            else:
+                allTimeHighPriceDate = allTimeHighPriceDateTime
+            
+            if allTimeLowPriceDateTime is not None:
+                allTimeLowPriceDateTimeObj = datetime.strptime(allTimeLowPriceDateTime, dateTimeFormatString)
+                allTimeLowPriceDate = allTimeLowPriceDateTimeObj.date()
+            else:
+                allTimeLowPriceDate = allTimeLowPriceDateTime
+
+            # st.write("All time high for ", ticker, " is ", allTimeHighPrice, " on ",  allTimeHighPriceDate)
+            # st.write("All time low for ", ticker, " is ", allTimeLowPrice, " on ",  allTimeLowPriceDate)
+
             # Recommendations Values
             recommendationKey = tickerDetails.get('recommendationKey', 'N/A')
             analystRating = tickerDetails.get('recommendationMean', 0)
@@ -582,6 +766,8 @@ with investmentPlan:
             
             if lastSplitDateEpoch != 'N/A':
                 lastSplitDate = datetime.fromtimestamp(lastSplitDateEpoch, tz=timezone.utc).date()
+            else:
+                lastSplitDate = ''
 
             # Dividend Details
             latestDividendValue = tickerDetails.get('lastDividendValue', 0)
@@ -589,13 +775,17 @@ with investmentPlan:
             
             if latestDividendDateEpoch != 'N/A':
                 latestDividendDate = datetime.fromtimestamp(latestDividendDateEpoch, tz=timezone.utc).date()
+            else:
+                latestDividendDate = ''
 
             dividendRate = tickerDetails.get('dividendRate', 0)
             dividendYield = tickerDetails.get('dividendYield', 0)
             exDividendDateEpoch = tickerDetails.get('exDividendDate', 'N/A')
             
             if exDividendDateEpoch != 'N/A':
-                exDividendDate = datetime.fromtimestamp(exDividendDateEpoch, tz=timezone.utc).date()    
+                exDividendDate = datetime.fromtimestamp(exDividendDateEpoch, tz=timezone.utc).date() 
+            else:
+                exDividendDate = ''
 
             payoutRatio = tickerDetails.get('payoutRatio', 0)
             payoutRatioPercent = payoutRatio * 100
@@ -612,11 +802,15 @@ with investmentPlan:
 
             if sharesOutstanding != 0 and impliedSharesOutstanding != 0:
                 sharesRemainingRatio = sharesOutstanding / impliedSharesOutstanding
+            else:
+                sharesRemainingRatio = 0.0
             
             floatShares = float(tickerDetails.get('floatShares', 0))
             
             if sharesOutstanding != 0 and floatShares != 0:
                 insiderOwnershipGap = sharesOutstanding - floatShares
+            else:
+                insiderOwnershipGap = 0.0
 
             # Bid and Ask details
             stockBid =  float(tickerDetails.get('bid', 0))
@@ -624,6 +818,8 @@ with investmentPlan:
             
             if stockBid > 0 and stockAsk > 0: 
                 bidAskSpread = stockAsk - stockBid
+            else:
+                bidAskSpread = 0.0
 
             if bidAskSpread < 0.05:
                 tickerLiquidity = 'High'
@@ -644,6 +840,8 @@ with investmentPlan:
 
             if bidAskSpread != 'N/A' and stockAsk != 0:
                 bidAskPercent = (bidAskSpread / stockAsk) * 100
+            else:
+                bidAskPercent = 0.0
 
             regularMarketTimeEpoch = tickerDetails.get('regularMarketTime', 'N/A')
             
@@ -657,10 +855,16 @@ with investmentPlan:
             if regularMarketPrice != 0 and targetHighPrice != 0:
                 targetGrowth = targetHighPrice - regularMarketPrice
                 targetGrowthPercent = (targetHighPrice - regularMarketPrice) / regularMarketPrice * 100
+            else:
+                targetGrowth = 0.0
+                targetGrowthPercent = 0.0
 
             if regularMarketPrice != 0 and targetLowPrice != 0:
                 targetFall = regularMarketPrice - targetLowPrice
                 targetFallPercent = (regularMarketPrice - targetLowPrice) / regularMarketPrice * 100
+            else:
+                targetFall = 0.0
+                targetFallPercent = 0.0
 
             time.sleep(0.5)
             tickerISDetails = yf.Ticker(ticker)
@@ -892,8 +1096,14 @@ with investmentPlan:
         if 'finalInvestmentDuration' not in st.session_state:
             st.session_state.finalInvestmentDuration = preferredInvestmentDuration 
 
+        if 'investmentStartDate' in st.session_state:
+            del st.session_state.investmentStartDate
+
         if 'investmentStartDate' not in st.session_state:
             st.session_state.investmentStartDate = date.today()
+
+        if 'investmentEndDate' in st.session_state:
+            del st.session_state.investmentEndDate
 
         if 'investmentEndDate' not in st.session_state:
             st.session_state.investmentEndDate = st.session_state.investmentStartDate.replace(year=st.session_state.investmentStartDate.year + preferredInvestmentDuration)
@@ -913,6 +1123,9 @@ with investmentPlan:
         with investmentFrequencyCol:
             investmentFrequency = st.selectbox("Select Investment Frequency:", ['Monthly', 'Quarterly', 'Half-Yearly', 'Yearly', 'One Time'], index=0, \
                 help="Select how frequently you plan to invest in the selected stocks.")
+            
+        splitPercentages = ''
+
         if investmentMode == 'Overall':
             with distributionSplitCol:
                 distributionSplit = st.selectbox("Select Distribution Split:", ['Equal Split', 'Custom Split'], index=0,
@@ -920,8 +1133,69 @@ with investmentPlan:
                 
                 if distributionSplit == 'Custom Split':
                     splitPercentages = st.text_input(f"Enter {numberOfStocks} integers separated by spaces (e.g., 10 20 30) for {numberOfStocks} stocks")
+        else:
+            distributionSplit = 'No Split'
+            splitPercentages = '100 100 100 100 100'
+
+        if st.button("Add Investment Preference"):
+            # Store investment prefernce in table
+            currentInvestmentDate = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+            investmentPreferenceID = f"IP{currentInvestmentDate}"
+            preferredStocks = ' '.join(selectedStocks)
+            preferredPortfolio = str(getDictFromString(preferredStocks))
+            premiumDistributionType = getDistributionSplitType(investmentMode, distributionSplit)
+            finalSplitShares = getDistributionSplitPercentage(investmentMode, distributionSplit, splitPercentages, investmentAmount, numberOfStocks)
+            distributionSplitPercentages = str(getDictFromString(finalSplitShares))
+            
+            sqlite_conn = sqlite3.connect(DB_NAME)
+            # dropIPCursor = sqlite_conn.cursor()
+            # dropIPCursor.execute('''
+            #   DROP TABLE IF EXISTS investment_preference_details
+            # ''')
+            # dropIPCursor.close()
+
+            createIPTableQuery = """
+                CREATE TABLE IF NOT EXISTS investment_preference_details (
+                    investment_preference_id TEXT PRIMARY KEY,
+                    investment_timelines TEXT NOT NULL,
+                    investment_duration INTEGER NOT NULL,
+                    preferred_duration INTEGER NOT NULL,
+                    sector_option TEXT NOT NULL,
+                    industry_option TEXT NOT NULL,
+                    market_capitalization_option TEXT NOT NULL,
+                    premium_amount INTEGER NOT NULL,
+                    total_stocks INTEGER NOT NULL,
+                    stocks_portfolio TEXT NOT NULL,
+                    investment_mode TEXT NOT NULL,
+                    investment_distribution_type TEXT NOT NULL,
+                    investment_distribution_share TEXT NOT NULL,
+                    investment_frequency TEXT NOT NULL
+                );
+            """
+
+            ipCreateCursor = sqlite_conn.cursor()
+            ipCreateCursor.execute(createIPTableQuery)
+            ipCreateCursor.close()
+
+            insertIPTableQuery = """
+                INSERT INTO investment_preference_details(investment_preference_id, investment_timelines, investment_duration, preferred_duration, sector_option, industry_option, market_capitalization_option, premium_amount, total_stocks, stocks_portfolio, investment_mode, investment_distribution_type, investment_distribution_share, investment_frequency) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            insertIPParams = (investmentPreferenceID, investmentTimeline, investmentDuration, preferredInvestmentDuration, sectorPreference, industryPreference, marketCapPreference, investmentAmount, numberOfStocks, preferredPortfolio, investmentMode, premiumDistributionType, distributionSplitPercentages, investmentFrequency)
+
+            ipInsertCursor = sqlite_conn.cursor()
+            ipInsertCursor.execute(insertIPTableQuery, insertIPParams)
+            ipInsertCursor.close()
+            sqlite_conn.commit()
+
+            if 'investmentPreferenceKey' in st.session_state:
+                del st.session_state.investmentPreferenceKey
+
+            if 'investmentPreferenceKey' not in st.session_state:
+                st.session_state.investmentPreferenceKey = investmentPreferenceID
 
         st.space("small") # "small", "medium", "large", or "stretch"
+
         planInvestmentButton = st.button("Plan Investment Strategy")
         finalInvestmentReturnsDF = pd.DataFrame()    
 
@@ -949,26 +1223,8 @@ with investmentPlan:
                 if 'preferredInvestmentFrequency' not in st.session_state:
                     st.session_state.preferredInvestmentFrequency = investmentFrequency
                 
-                finalSplitPercentages = ''
-
-                if investmentMode == 'Overall':
-                    if distributionSplit == 'Custom Split':
-                        finalSplitPercentages = splitPercentages
-                    else:
-                        investmentPerStock = investmentAmount / numberOfStocks
-                        investmentPercentagePerStock = (investmentPerStock / investmentAmount) * 100
-                        individualSplitPercentages = str(int(investmentPercentagePerStock))
-
-                        for i in range (int(numberOfStocks)):
-                            finalSplitPercentages += f"{individualSplitPercentages} "
-                else:
-                    for i in range (int(numberOfStocks)):
-                        finalSplitPercentages += f"100 "
-
-                if investmentMode == 'Per Stock':
-                    finalDistributionSplit = 'No Split'
-                else: 
-                    finalDistributionSplit = distributionSplit
+                finalDistributionSplit = getDistributionSplitType(investmentMode, distributionSplit)
+                finalSplitPercentages = getDistributionSplitPercentage(investmentMode, distributionSplit, splitPercentages, investmentAmount, numberOfStocks)
 
                 with investmentPlannerCol3:
                     st.write(f"Number of Stocks to Invest In: {numberOfStocks}")
@@ -996,7 +1252,8 @@ with investmentPlan:
                 # st.space("small")
 
                 finalInvestmentReturnsDF = pd.merge(investmentStrategyDF, stockSplitDistributionDF, on='Ticker', how='inner')   
-
+                investmentPerStock = investmentAmount / numberOfStocks
+                
                 if investmentMode == 'Per Stock':
                     finalInvestmentReturnsDF['Planned Investment'] = investmentAmount
                 else:
@@ -1062,13 +1319,207 @@ with investmentPlan:
             investmentsHistoryDF["Next Investment Date"] = pd.to_datetime(investmentsHistoryDF["Investment Date"] + pd.DateOffset(months=monthsDuration)).dt.date # Date
             # investmentsHistoryDF["Next Investment Date"] = investmentsHistoryDF["Investment Date"] + pd.DateOffset(months=1) # Date and Time
             investmentsHistoryDF = investmentsHistoryDF.drop(['Market Type', 'Series', 'Exchange', 'Market Capitalization'], axis=1)
+            
+            if 'investmentHistory' in st.session_state:
+                del st.session_state.investmentHistory
+
+            if 'investmentHistory' not in st.session_state:
+                st.session_state.investmentHistory = investmentsHistoryDF
+            
             st.write("Final Investment History")
             st.dataframe(investmentsHistoryDF, hide_index=True)
+
+        if st.button("Add Investment Details"):
+            sqlite_conn = sqlite3.connect(DB_NAME)
+            investmentsHistoryDF = st.session_state.investmentHistory
+            purchaseHistoryDF = investmentsHistoryDF[['Ticker', 'Latest Price', 'Planned Investment', 'Units Purchased', 'Purchase Amount', 'Balance Amount', 'Investment Date', 'Next Investment Date']].copy()
+            currentInvestmentDate = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+            investmentID = f"INV{currentInvestmentDate}"
+            purchaseHistoryDF['Investment ID'] = investmentID
+            purchaseHistoryDF['Purchase Price'] = purchaseHistoryDF['Latest Price']
+            purchaseHistoryDF = purchaseHistoryDF.rename(columns={'Planned Investment': 'Premium Amount', 'Investment Date': 'Purchase Date', 'Next Investment Date': 'Next Premium Due'})
+            print(st.session_state.investmentPreferenceKey)
+            purchaseHistoryDF['Investment Preference ID'] = st.session_state.investmentPreferenceKey
+            resetPHColumnOrder = ['Investment ID', 'Investment Preference ID', 'Ticker', 'Purchase Price', 'Latest Price', 'Premium Amount', 'Units Purchased', 'Purchase Amount', 'Balance Amount', 'Purchase Date', 'Next Premium Due']
+            purchaseHistoryDF = purchaseHistoryDF[resetPHColumnOrder]
+            
+            # dropSIDCursor = sqlite_conn.cursor()
+            # dropSIDCursor.execute('''
+            #     DROP TABLE IF EXISTS stock_investment_details
+            # ''')
+            # dropSIDCursor.close()
+
+            # Alter stock_investment_details tabe
+            # alterSIDCursor = sqlite_conn.cursor()
+            # newColumns = [
+            #   ('Investment ID', 'TEXT'),
+            #   ('Investment Preference ID', 'TEXT')
+            # ]
+            # 
+            # for columnName, dataType in newColumns:
+            #   alterPHQuery = f"ALTER TABLE stock_investment_details ADD COLUMN {columnName} {dataType}"
+            #   alterSIDCursor.execute(alterPHQuery)
+
+            purchaseHistoryDF.to_sql('stock_investment_details', sqlite_conn, if_exists='append', index=False)
+            sqlite_conn.commit()
             st.space('small')
-    except Exception as e: 
+    except sqlite3.Error as e: 
         st.error("Error generating and fetching investment data.")
         traceback.print_exc()
         st.exception(e)
+    finally:
+        # Close the connection
+        if sqlite_conn:
+            sqlite_conn.close()
+
+with currentPortfolioValue:
+    try:
+        sqlite_portfolio_conn = sqlite3.connect(DB_NAME)
+
+        investmentPreferencesQuery = """
+            SELECT DISTINCT investment_preference_id
+            FROM investment_preference_details
+        """
+        investmentPreferencesDF = pd.read_sql_query(investmentPreferencesQuery, sqlite_portfolio_conn)
+        investmentPreferenceList = investmentPreferencesDF['investment_preference_id'].unique().tolist()
+        
+        selectIP = st.selectbox("Select Investment", options=investmentPreferenceList, index=0, key='investmentPreference', help="Select the ticker to display cose price trend.")
+        
+        selectPortfolioQuery = f"""
+                SELECT "Investment ID", "Investment Preference ID", Ticker, "Purchase Price", "Latest Price", "Units Purchased", "Purchase Date"
+                FROM stock_investment_details
+                WHERE "Investment Preference ID" = ?; 
+        """
+        # investmentPreferenceID = st.session_state.investmentPreferenceKey
+
+        stockPortfolioParams = (selectIP, )
+        stockPortfolioDF = pd.read_sql_query(selectPortfolioQuery, sqlite_portfolio_conn, params=stockPortfolioParams)
+        
+        stocksBought = stockPortfolioDF['Ticker'].unique().tolist()
+        
+        for stock in stocksBought:
+            latestStockPrice = yf.Ticker(stock).history(period="1d")['Close'].iloc[-1]
+            stockPortfolioDF["Latest Price"] = np.where(stockPortfolioDF['Ticker'] == stock, latestStockPrice, stockPortfolioDF["Latest Price"])
+
+        stockPortfolioDF["Units Purchased"] = stockPortfolioDF["Units Purchased"].astype('int64')
+        stockPortfolioDF["Price Change"] = stockPortfolioDF["Latest Price"] - stockPortfolioDF["Purchase Price"]
+        stockPortfolioDF["Purchase Amount"] = stockPortfolioDF["Purchase Price"] * stockPortfolioDF["Units Purchased"]
+        stockPortfolioDF["Current Amount"] = stockPortfolioDF["Latest Price"] * stockPortfolioDF["Units Purchased"]
+        stockPortfolioDF["Profit"] = stockPortfolioDF["Current Amount"] - stockPortfolioDF["Purchase Amount"] 
+        stockPortfolioDF["Change Percent"] = stockPortfolioDF["Profit"] / stockPortfolioDF["Purchase Amount"]
+        stockPortfolioDF["Weightage Percent"] = stockPortfolioDF["Purchase Amount"] / stockPortfolioDF["Purchase Amount"].sum()
+
+        advancesDeclinesConditions = [
+            (stockPortfolioDF["Profit"]  > 0),
+            (stockPortfolioDF["Profit"]  < 0)
+        ]
+        advancesDeclinesChoices = ['Advancing', 'Declining']
+        
+        stockPortfolioDF['Movement'] = np.select(advancesDeclinesConditions, advancesDeclinesChoices, default='No Change')
+
+        stockPortfolioDF = stockPortfolioDF.style.map(setPortfolioProfitLoss, subset=['Profit', 'Change Percent'])
+        stockPortfolioDF = stockPortfolioDF.format(
+            {"Purchase Price": "{:.2f}", "Latest Price": "{:.2f}", "Price Change": "{:.2f}", "Profit": "{:.2f}", "Change Percent": "{:.2%}", "Weightage Percent": "{:.2%}"}
+        )
+
+        hideAmountColumns = {'Purchase Amount': None, 'Current Amount': None}
+        st.subheader("Portfolio value by Tickers")
+        st.dataframe(stockPortfolioDF, hide_index=True, column_config=hideAmountColumns)
+        st.space('small')
+
+        # Converting styler object back to dataframe
+        stockPortfolioOriDF = stockPortfolioDF.data
+        overallPortfolioDF = stockPortfolioOriDF[['Investment ID', 'Investment Preference ID', 'Purchase Date', 'Ticker', 'Units Purchased', 'Purchase Amount', 'Current Amount']].copy()
+        overallPortfolioValueDF = overallPortfolioDF.groupby(['Investment ID', 'Investment Preference ID', 'Purchase Date']).agg(
+            Total_Stocks=('Ticker', 'count'),
+            Total_Units=('Units Purchased', 'sum'),
+            Overall_Purchase_Amount=('Purchase Amount', 'sum'),
+            Overall_Current_Amount=('Current Amount', 'sum'),
+        ).reset_index()
+        overallPortfolioValueDF['Profit'] = overallPortfolioValueDF["Overall_Current_Amount"] - overallPortfolioValueDF["Overall_Purchase_Amount"] 
+        overallPortfolioValueDF["Change Percent"] = overallPortfolioValueDF["Profit"] / overallPortfolioValueDF["Overall_Purchase_Amount"]
+
+        stockMovementDF = stockPortfolioOriDF[['Investment ID', 'Investment Preference ID', 'Purchase Date', 'Movement']].copy()
+        overallMovementDF= stockMovementDF.groupby(['Investment ID', 'Investment Preference ID', 'Purchase Date', 'Movement'])['Movement'].count().unstack()
+        overallPortfolioDF = pd.merge(overallPortfolioValueDF, overallMovementDF, on=['Investment ID', 'Investment Preference ID', 'Purchase Date'], how='inner')
+        overallPortfolioDF = overallPortfolioDF.rename(columns={'Total_Stocks':'Total Stocks', 'Total_Units':'Total Units', 'Overall_Purchase_Amount': 'Overall Purchases', 'Overall_Current_Amount': 'Overall Market Value', 'Advancing': 'Total Advances', 'Declining': 'Total Declines'})
+       
+        overallPortfolioDF = overallPortfolioDF.style.map(setPortfolioProfitLoss, subset=['Profit', 'Change Percent'])
+        overallPortfolioDF = overallPortfolioDF.format(
+            {"Profit": "{:.2f}", "Change Percent": "{:.2%}", "Overall Purchases": "{:.2f}", "Overall Market Value": "{:.2f}"}
+        )
+
+        # hideOverallAmountColumns = {'Overall_Purchase_Amount': None, 'Overall_Current_Amount': None} column_config=hideOverallAmountColumns     
+        st.subheader("Overall Portfolio Value")
+        st.dataframe(overallPortfolioDF, hide_index=True)
+
+        st.space('small')
+        bestPerfomingTicker = stockPortfolioOriDF.loc[stockPortfolioOriDF['Change Percent'].idxmax()]['Ticker']
+        worstPerfomingTicker = stockPortfolioOriDF.loc[stockPortfolioOriDF['Change Percent'].idxmin()]['Ticker']
+        st.subheader("Best and Worst Performing Stocks")
+        with st.container(horizontal=True):
+            st.success(f":material/trending_up: Best performing stock in your portfolio is: **{bestPerfomingTicker}** with a return of **{stockPortfolioOriDF['Change Percent'].max():.2%}**")
+            st.error(f":material/trending_down: Worst performing stock in your portfolio is: **{worstPerfomingTicker}** with a return of **{stockPortfolioOriDF['Change Percent'].min():.2%}**")
+
+
+        stopLossPercent = 0.05
+        takeProfitPercent = 0.10
+        
+        entryPriceAlertsDF = stockPortfolioOriDF[['Ticker', 'Purchase Price', 'Latest Price', 'Change Percent']].copy()
+        entryPriceAlertsDF['Stop Loss Price'] = entryPriceAlertsDF['Purchase Price'] * (1 - stopLossPercent)
+        entryPriceAlertsDF['Take Profit Price'] = entryPriceAlertsDF['Purchase Price'] * (1 + takeProfitPercent)
+        entryPriceAlertsDF['Stop Loss Alert'] = np.where(entryPriceAlertsDF['Latest Price'] <= entryPriceAlertsDF['Stop Loss Price'], 'Trigger Stop Loss', 'No Action')
+        entryPriceAlertsDF['Take Profit Alert'] = np.where(entryPriceAlertsDF['Latest Price'] >= entryPriceAlertsDF['Take Profit Price'], 'Trigger Take Profit', 'No Action')
+        entryPriceAlertsDF = entryPriceAlertsDF.style.map(setPortfolioProfitLoss, subset=['Change Percent'])
+        entryPriceAlertsDF = entryPriceAlertsDF.format(
+            {"Purchase Price": "{:.2f}", "Latest Price": "{:.2f}", "Change Percent": "{:.2%}", "Stop Loss Price": "{:.2f}", "Take Profit Price": "{:.2f}"}
+        )
+        st.space('small')
+        st.subheader("Stop Loss and Take Profit Alerts")
+        st.dataframe(entryPriceAlertsDF, hide_index=True)
+
+        historicalTradeDF = st.session_state.historicalLiveStockDataDF
+        availableTradesDF = historicalTradeDF[pd.to_datetime(historicalTradeDF["Trade_Date"]).dt.year > 2020]
+        availableTradesDF = availableTradesDF[availableTradesDF['Ticker'].isin(stockPortfolioOriDF['Ticker'])]
+        
+        # Slow moving averages
+        availableTradesDF = availableTradesDF.groupby('Ticker').apply(calculateSMA, window=50)
+        availableTradesDF = availableTradesDF.reset_index(drop=True)
+        availableTradesDF = availableTradesDF.groupby('Ticker').apply(calculateSMA, window=200)
+        availableTradesDF = availableTradesDF.reset_index(drop=True)
+        availableTradesDF.dropna(inplace=True)
+
+        availableTradesDF['Signal'] = 0
+        availableTradesDF.loc[(availableTradesDF['SMA_50'] > availableTradesDF['SMA_200']) & (availableTradesDF['SMA_50'].shift(1) <= availableTradesDF['SMA_200'].shift(1)), 'Signal'] = 1
+        availableTradesDF.loc[(availableTradesDF['SMA_50'] < availableTradesDF['SMA_200']) & (availableTradesDF['SMA_50'].shift(1) >= availableTradesDF['SMA_200'].shift(1)), 'Signal'] = -1
+        availableTradesDF.dropna(inplace=True)
+
+        # availableTradesDF['Position'] = availableTradesDF['Signal'].shift(1)
+        availableTradesDF['Target Buy Price'] = np.where(availableTradesDF['Signal'] == 1, availableTradesDF['Close'], np.nan)
+        availableTradesDF['Target Sell Price'] = np.where(availableTradesDF['Signal'] == -1, availableTradesDF['Close'], np.nan)
+
+        availableSignalsDF = availableTradesDF[(availableTradesDF['Signal'] == 1) | (availableTradesDF['Signal'] == -1)]
+        st.space('small')
+        # st.dataframe(availableSignalsDF, hide_index=True)
+        
+        buySignalPricesDF = availableTradesDF[['Ticker', 'Target Buy Price']].dropna()
+        sellSignalPricesDF = availableTradesDF[['Ticker', 'Target Sell Price']].dropna()
+        
+        buySignalPricesDF = buySignalPricesDF.sort_values(by='Target Buy Price', ascending=False).drop_duplicates(subset='Ticker', keep='first')
+        sellSignalPricesDF = sellSignalPricesDF.sort_values(by='Target Sell Price', ascending=True).drop_duplicates(subset='Ticker', keep='first')
+        signalPricesDF = pd.merge(buySignalPricesDF, sellSignalPricesDF, on='Ticker', how='outer')
+        signalPricesDF = signalPricesDF.sort_values(by='Ticker', ascending=True).reset_index(drop=True)
+        st.space('small')
+
+        st.subheader("Buy and Sell Target Prices")
+        st.dataframe(signalPricesDF, hide_index=True)
+
+    except sqlite3.Error as e:
+        st.error(f"Database error: {e}")
+    finally:
+        # Close the connection
+        if sqlite_portfolio_conn:
+            sqlite_portfolio_conn.close()
 
 with returnsCal:
     st.header("Returns Calculator")
@@ -1101,7 +1552,6 @@ with returnsCal:
             tradeDataReturnsDF = pd.read_sql_query(selectProfitLossData, sqlite_returns_conn, params=allReturnParams)
             tradeDataReturnsDF = tradeDataReturnsDF.sort_values(by=['Ticker', 'Trade_Date'], ascending=[True, True])
             tradeDataReturnsDF['Trade_Date'] = pd.to_datetime(tradeDataReturnsDF['Trade_Date'])
-            # st.write(tradeDataReturnsDF.dtypes)
             
             latestReturnsDF = tradeDataReturnsDF.groupby(['Ticker', tradeDataReturnsDF['Trade_Date'].dt.to_period('M')]).agg(
                 First_Actual_Date=('Trade_Date', 'min')
@@ -1110,16 +1560,25 @@ with returnsCal:
             latestReturnsDF = latestReturnsDF.rename(columns={'Trade_Date': 'Trade Month', 'First_Actual_Date': 'Trade_Date'})
             latestPriceDF = pd.merge(latestReturnsDF, tradeDataReturnsDF, on=['Ticker', 'Trade_Date'], how='inner')
             latestPriceDF.drop_duplicates(inplace=True)
+
+            isPPNotNull = latestPriceDF['Purchase Price'].notna()
+            isPPNotZero = latestPriceDF['Purchase Price'] != 0
+
             latestPriceDF['Monthly Investment'] = 10000
-            latestPriceDF['Units Purchased'] = (10000 / latestPriceDF['Purchase Price']).astype(int)
-            latestPriceDF['Purchase Amount'] = (latestPriceDF['Purchase Price'] * latestPriceDF['Units Purchased']).round(2)
+            latestPriceDF['Units Purchased'] = (np.where(isPPNotNull & isPPNotZero, 10000 / latestPriceDF['Purchase Price'], 0)).astype(int)
+            latestPriceDF['Purchase Amount'] = (np.where(isPPNotNull & isPPNotZero, latestPriceDF['Purchase Price'] * latestPriceDF['Units Purchased'], 0)).round(2)
             latestPriceDF['Balance Amount'] = (latestPriceDF['Monthly Investment'] - latestPriceDF['Purchase Amount']).round(2)
             totalAmountInvested = latestPriceDF['Monthly Investment'].sum()
             totalPurchaseAmount = latestPriceDF['Purchase Amount'].sum()
             totalUnitsPurchased = latestPriceDF['Units Purchased'].sum()
-            totalReturns = latestPriceDF['Purchase Price'].iloc[-1] * totalUnitsPurchased
+
+            if latestPriceDF['Purchase Price'].iloc[-1] == 0:
+                totalReturns = latestPriceDF['Purchase Price'].iloc[-2] * totalUnitsPurchased
+            else:
+                totalReturns = latestPriceDF['Purchase Price'].iloc[-1] * totalUnitsPurchased
+            
             totalProfitLoss = totalReturns - totalPurchaseAmount
-            rateOfInvestments = (totalReturns - totalPurchaseAmount) / totalPurchaseAmount      
+            rateOfInvestments = (totalReturns - totalPurchaseAmount) / totalPurchaseAmount
 
             if selectTicker == "AAPL":
                 st.dataframe(latestPriceDF, hide_index=True, column_config={'Trade Month': None})
@@ -1136,11 +1595,14 @@ with returnsCal:
                 investmentSummaryDF = pd.DataFrame(investmentSummaryKPI)
                 investmentSummaryDF['Profit Loss'] = investmentSummaryDF['Profit Loss'].astype(float)
                 investmentSummaryDF['Returns on Investment'] = investmentSummaryDF['Returns on Investment'].astype(float)
-                investmentSummaryDF = investmentSummaryDF.style.applymap(setProfitLoss, subset=['Profit Loss', 'Returns on Investment'])
+                investmentSummaryDF = investmentSummaryDF.style.map(setProfitLoss, subset=['Profit Loss', 'Returns on Investment'])
                 investmentSummaryDF = investmentSummaryDF.format(
                     {"Profit Loss": "{:.2f}", "Returns on Investment": "{:.2%}"}
                 )
+                
                 st.dataframe(investmentSummaryDF, hide_index=True)
+
+
             else:
                 st.write("No investment data available.")
         elif plCurrentFuture == "Current":
@@ -1169,7 +1631,7 @@ with returnsCal:
             futureInvestmentSummaryDF = pd.DataFrame(futureInvestmentSummaryKPI)
             futureInvestmentSummaryDF['Profit Loss'] = futureInvestmentSummaryDF['Profit Loss'].astype(float)
             futureInvestmentSummaryDF['Returns on Investment'] = futureInvestmentSummaryDF['Returns on Investment'].astype(float)
-            futureInvestmentSummaryDF = futureInvestmentSummaryDF.style.applymap(setProfitLoss, subset=['Profit Loss', 'Returns on Investment'])
+            futureInvestmentSummaryDF = futureInvestmentSummaryDF.style.map(setProfitLoss, subset=['Profit Loss', 'Returns on Investment'])
             
             futureInvestmentSummaryDF = futureInvestmentSummaryDF.format(
                 {"Profit Loss": "{:.2f}", "Returns on Investment": "{:.2%}"}
@@ -1300,7 +1762,7 @@ with priceTrends:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=tradeDataTrendDF['Trade_Date'], y=tradeDataTrendDF['Close'], mode='lines', name='Close Price'))
         fig.update_layout(
-            title=f'{selectTicker} Closing Price History',
+            title=f'{selectTickerTrend} Closing Price History',
             xaxis_title='Date',
             yaxis_title='Price (USD)',
             plot_bgcolor='rgba(0,0,0,0)',
@@ -1314,11 +1776,11 @@ with priceTrends:
             high=tradeDataTrendDF['High'],
             low=tradeDataTrendDF['Low'],
             close=tradeDataTrendDF['Close'],
-            name=selectTicker
+            name=selectTickerTrend
         )])
 
         figcs.update_layout(
-            title=f'{selectTicker} Stock Price',
+            title=f'{selectTickerTrend} Stock Price',
             xaxis_title='Date',
             yaxis_title='Price (USD)',
             xaxis_rangeslider_visible=False,
@@ -1424,17 +1886,18 @@ with keyIndicators:
         dailyTradeStatusDF = pd.merge(currentDayTradeDF, finalStockCompanyInfoDF[['Ticker', 'Company Name', 'Sector', 'Industry']], on='Ticker', how='left')
         resetColumnOrder = ['Ticker', 'Trade_Date', 'Company Name', 'Sector', 'Industry', 'Open', 'High', 'Low', 'Close', 'Previous Close', 'Previous High', 'Previous Low', 'Previous Open', 'Volume', 'Share Trend']
         dailyTradeStatusDF = dailyTradeStatusDF[resetColumnOrder]
-        advancesDeclinesDF = dailyTradeStatusDF.style.applymap(setStatusColor, subset=['Share Trend'])
+        advancesDeclinesDF = dailyTradeStatusDF.style.map(setStatusColor, subset=['Share Trend'])
         st.space('small')
         st.subheader("Advances and Declines")
         st.dataframe(advancesDeclinesDF, hide_index=True, column_config=hideColumns)
     except Exception as e:
         st.error("Error fetching Key Technical Indicators")
-        traceback.print_exc()
+        traceback.print_exc() 
         st.exception(e)
 
 with companyMetrics:
     try:
+        # Load values stored in streamlit session state to variables 
         valuationRatios = st.session_state.valuationRatios 
         profitabilityMetrics = st.session_state.profitabilityMetrics 
         financialHealthLiquidity = st.session_state.financialHealthLiquidity 
@@ -1448,7 +1911,7 @@ with companyMetrics:
 
         segmentControlOptions = ["Value Ratios", "Profitability Metrics", "Financial Health Liquidity", "Risk Volatility", "Company Values", "Splits & Dividends", "Shares", "Bid & Ask", "Target Prices", "Income Statement"]
 
-        stockAttributeGroupSC = st.segmented_control("Select attribute group to view metrics", options=segmentControlOptions, selection_mode="single")
+        stockAttributeGroupSC = st.segmented_control("Select group to view metrics", options=segmentControlOptions, selection_mode="single", width="stretch")
 
         if stockAttributeGroupSC == "Value Ratios":
             valuationRatiosDF = pd.DataFrame(valuationRatios, columns=valuationRatiosColumns)
@@ -1519,15 +1982,23 @@ with sectorIndustry:
         resetColumnOrder = ['Ticker', 'Trade_Date', 'Company Name', 'Sector', 'Industry', 'Close', 'High', 'Low', 'Open', \
                         'Previous Close', 'Previous High', 'Previous Low', 'Previous Open', 'Volume', 'Share Trend']
         dailyTradeStatusDF = dailyTradeStatusDF[resetColumnOrder]
-        validateColumn = 'No Change'
+        # validateColumn = 'No Change'
 
         sectorDetailsDF = dailyTradeStatusDF.groupby(['Sector', 'Share Trend']).size().reset_index(name='No of Companies')
         sectorDetailsDF = sectorDetailsDF.pivot(index='Sector', columns='Share Trend', values='No of Companies')
         sectorDetailsDF.reset_index(inplace=True)
-        sectorDetailsDF['Advancing'] = sectorDetailsDF['Advancing'].fillna(0)
-        sectorDetailsDF['Declining'] = sectorDetailsDF['Declining'].fillna(0)
 
-        if validateColumn in sectorDetailsDF.columns:
+        if 'Advancing' in sectorDetailsDF.columns:
+            sectorDetailsDF['Advancing'] = sectorDetailsDF['Advancing'].fillna(0)
+        else:
+            sectorDetailsDF['Advancing'] = 0
+            
+        if 'Declining' in sectorDetailsDF.columns:
+            sectorDetailsDF['Declining'] = sectorDetailsDF['Declining'].fillna(0)
+        else:
+            sectorDetailsDF['Declining'] = 0
+
+        if 'No Change' in sectorDetailsDF.columns:
             sectorDetailsDF['No Change'] = sectorDetailsDF['No Change'].fillna(0)
         else:
             sectorDetailsDF['No Change'] = 0
@@ -1537,10 +2008,18 @@ with sectorIndustry:
         industryDetailsDF = dailyTradeStatusDF.groupby(['Industry', 'Share Trend']).size().reset_index(name='No of Companies')
         industryDetailsDF = industryDetailsDF.pivot(index='Industry', columns='Share Trend', values='No of Companies')
         industryDetailsDF.reset_index(inplace=True)
-        industryDetailsDF['Advancing'] = industryDetailsDF['Advancing'].fillna(0)
-        industryDetailsDF['Declining'] = industryDetailsDF['Declining'].fillna(0)
 
-        if validateColumn in industryDetailsDF.columns:
+        if 'Advancing' in industryDetailsDF.columns:
+            industryDetailsDF['Advancing'] = industryDetailsDF['Advancing'].fillna(0)
+        else:
+            industryDetailsDF['Advancing'] = 0
+            
+        if 'Declining' in industryDetailsDF.columns:
+            industryDetailsDF['Declining'] = industryDetailsDF['Declining'].fillna(0)
+        else:
+            industryDetailsDF['Declining'] = 0      
+
+        if 'No Change' in industryDetailsDF.columns:
             industryDetailsDF['No Change'] = industryDetailsDF['No Change'].fillna(0)
         else:
             industryDetailsDF['No Change'] = 0
